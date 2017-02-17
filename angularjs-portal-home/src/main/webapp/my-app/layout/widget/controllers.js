@@ -63,10 +63,11 @@ define(['angular'], function (angular) {
   app.controller('WeatherController', ['$scope', 'layoutService', 'keyValueService', '$q', function ($scope, layoutService, keyValueService, $q) {
     $scope.weatherData = [];
     $scope.loading = false;
+    $scope.showMetric = false;
+    $scope.currentlyImperial = true;
     $scope.fetchKey = "userWeatherPreference";
     $scope.initialPreference = true;
-    $scope.currentUnits = 'F';
-    $scope.nextUnits = 'C';
+
 
     var populateWidgetContent = function () {
       if ($scope.portlet.widgetURL && $scope.portlet.widgetType) {
@@ -78,18 +79,19 @@ define(['angular'], function (angular) {
 
         $q.all([widgetPromise, preferencePromise]).then(function (data) {
           $scope.loading = false;
-
           if (data) {
             console.log(data);
             var allTheWeathers = data[0];
             var myPref = data[1];
+            var myPreference = 'F';
+            if (myPref.userWeatherPreference == 'C') {
+              myPreference = 'C';
+            }
+
             $scope.portlet.widgetData = allTheWeathers.weathers;
             $scope.weatherData = $scope.portlet.widgetData;
-            $scope.currentUnits = 'F';
-            $scope.nextUnits = 'C';
-            while(myPref.userWeatherPreference != $scope.currentUnits){
-              $scope.cycleUnits();
-            }
+            $scope.changePref(myPreference);
+
           } else {
             $scope.error = true;
             console.warn("Got nothing back from widget fetch");
@@ -101,85 +103,47 @@ define(['angular'], function (angular) {
       }
     };
 
-    $scope.cycleUnits = function (){
+    $scope.changePref = function (userPreference) {
 
-      var userPreference = $scope.nextUnits;
-      if(userPreference === "" || userPreference === null || typeof userPreference === "undefined"){
-        userPreference = 'F';
-         $scope.initialPreference = true;
-      }else{
-         $scope.initialPreference = false;
+      if (userPreference === 'C') {
+        $scope.changeToC();
+        $scope.showMetric = true;
+      } else {
+        $scope.changeToF();
       }
-
-      if(userPreference === 'F'  && !$scope.initialPreference){
-        $scope.changeKToF();
-        $scope.currentUnits = 'F';
-        $scope.nextUnits = 'C';
+      if ($scope.initialPreference) {
+        $scope.initialPreference = false;
+      } else {
+        var value = {};
+        value.userWeatherPreference = userPreference;
+        keyValueService.setValue($scope.fetchKey, value);
       }
+    }
 
-      if(userPreference === 'C'){
-        $scope.changeFToC();
-        $scope.currentUnits = 'C';
-        $scope.nextUnits = 'K';
-      }
+    $scope.changeToC = function () {
+      if ($scope.currentlyImperial) {
+        for (var i = 0; i < $scope.weatherData.length; i++) {
+          $scope.weatherData[i].currentWeather.temperature = ($scope.weatherData[i].currentWeather.temperature - 32) * (5 / 9);
 
-      if(userPreference === 'K'){
-        $scope.changeCToK();
-        $scope.currentUnits = 'K';
-        $scope.nextUnits = 'F';
-      }
-
-      var value = {};
-      value.userWeatherPreference = $scope.currentUnits;
-      keyValueService.setValue($scope.fetchKey, value);
-    };
-
-    $scope.changeFToC = function () {
-      for (var i = 0; i < $scope.weatherData.length; i++) {
-        $scope.weatherData[i].currentWeather.temperature = ($scope.weatherData[i].currentWeather.temperature - 32) * (5 / 9);
-
-        for (var j = 0; j < $scope.weatherData[i].forecast.length; j++) {
-          $scope.weatherData[i].forecast[j].highTemperature = ($scope.weatherData[i].forecast[j].highTemperature - 32) * (5 / 9);
-          $scope.weatherData[i].forecast[j].lowTemperature = ($scope.weatherData[i].forecast[j].lowTemperature - 32) * (5 / 9);
+          for (var j = 0; j < $scope.weatherData[i].forecast.length; j++) {
+            $scope.weatherData[i].forecast[j].highTemperature = ($scope.weatherData[i].forecast[j].highTemperature - 32) * (5 / 9)
+            $scope.weatherData[i].forecast[j].lowTemperature = ($scope.weatherData[i].forecast[j].lowTemperature - 32) * (5 / 9)
+          }
         }
+        $scope.currentlyImperial = false;
       }
     };
+    $scope.changeToF = function () {
+      if (!$scope.currentlyImperial) {
+        for (var i = 0; i < $scope.weatherData.length; i++) {
+          $scope.weatherData[i].currentWeather.temperature = ($scope.weatherData[i].currentWeather.temperature) * (9 / 5) + 32;
 
-    $scope.changeCToK = function() {
-      for (var i = 0; i < $scope.weatherData.length; i++) {
-        $scope.weatherData[i].currentWeather.temperature = ($scope.weatherData[i].currentWeather.temperature + 273) ;
-
-        for (var j = 0; j < $scope.weatherData[i].forecast.length; j++) {
-          $scope.weatherData[i].forecast[j].highTemperature = ($scope.weatherData[i].forecast[j].highTemperature + 273);
-          $scope.weatherData[i].forecast[j].lowTemperature = ($scope.weatherData[i].forecast[j].lowTemperature + 273);
+          for (var j = 0; j < $scope.weatherData[i].forecast.length; j++) {
+            $scope.weatherData[i].forecast[j].highTemperature = ($scope.weatherData[i].forecast[j].highTemperature) * (9 / 5) + 32;
+            $scope.weatherData[i].forecast[j].lowTemperature = ($scope.weatherData[i].forecast[j].lowTemperature) * (9 / 5) + 32;
+          }
         }
-      }
-    };
-
-    $scope.changeKToF = function(){
-      $scope.changeKToC();
-      $scope.changeCToF();
-    };
-
-    $scope.changeKToC = function() {
-      for (var i = 0; i < $scope.weatherData.length; i++) {
-        $scope.weatherData[i].currentWeather.temperature = ($scope.weatherData[i].currentWeather.temperature - 273) ;
-
-        for (var j = 0; j < $scope.weatherData[i].forecast.length; j++) {
-          $scope.weatherData[i].forecast[j].highTemperature = ($scope.weatherData[i].forecast[j].highTemperature - 273);
-          $scope.weatherData[i].forecast[j].lowTemperature = ($scope.weatherData[i].forecast[j].lowTemperature - 273);
-        }
-      }
-    };
-
-    $scope.changeCToF = function () {
-      for (var i = 0; i < $scope.weatherData.length; i++) {
-        $scope.weatherData[i].currentWeather.temperature = ($scope.weatherData[i].currentWeather.temperature) * (9 / 5) + 32;
-
-        for (var j = 0; j < $scope.weatherData[i].forecast.length; j++) {
-          $scope.weatherData[i].forecast[j].highTemperature = ($scope.weatherData[i].forecast[j].highTemperature) * (9 / 5) + 32;
-          $scope.weatherData[i].forecast[j].lowTemperature = ($scope.weatherData[i].forecast[j].lowTemperature) * (9 / 5) + 32;
-        }
+        $scope.currentlyImperial = true;
       }
     }
     console.log("Config: " + $scope.portlet.widgetConfig);
